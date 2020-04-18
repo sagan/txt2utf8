@@ -1,6 +1,6 @@
 {
   "name": "txt2utf8",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -9,7 +9,9 @@
   "bin": "./bin/txt2utf8.js",
   "author": "",
   "license": "ISC",
+  "repository": "github:sagan/txt2utf8",
   "dependencies": {
+    "commander": "^5.0.0",
     "detect-character-encoding": "^0.8.0",
     "encoding": "^0.1.12",
     "enquirer": "^2.3.5",

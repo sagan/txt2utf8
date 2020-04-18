@@ -2,4 +2,4 @@
 
 "use strict";
 
-require("../index.js").main(process.argv.slice(2));
+require("../index.js").main(process.argv);

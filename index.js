@@ -1,15 +1,28 @@
 const fs = require("fs-extra");
 const readdirp = require("readdirp");
+const path = require("path");
 const detectCharacterEncoding = require("detect-character-encoding");
+const { program } = require("commander");
 const { convert } = require("encoding");
 const { prompt } = require("enquirer");
+const { version } = require("./package.json");
 
 async function main(argv) {
-  if (argv.length == 0) {
-    console.log(`Usage: txt2utf8 <root>`);
-    return;
-  }
-  let root = argv[0];
+  let root;
+  program
+    .version(version)
+    .arguments("<rootPath>")
+    .option("-d, --debug", "output extra debugging")
+    .option(
+      "-r, --rename-unrecognized",
+      "rename files which encoding is unrecognized with prefix '__unknown_encoding__'"
+    )
+    .action(function (rootPath) {
+      root = rootPath;
+    });
+  program.parse(argv);
+  if (program.debug) console.log(program.opts());
+
   let count = 0;
   const { confirm } = await prompt({
     type: "input",
@@ -24,12 +37,12 @@ async function main(argv) {
     alwaysStat: true,
     fileFilter: ["*.txt", "*.TXT", "*.Txt"]
   })) {
-    const { path, fullPath, basename, stats } = entry;
+    const { path: p, fullPath, basename, stats } = entry;
     if (stats.size < 100) {
-      // console.log(`skip small file ${path}`);
+      // console.log(`skip small file ${p}`);
       continue;
     } else if (stats.size >= 100 * 1024 * 1024) {
-      console.log(`skip big file ${path}`);
+      console.log(`skip big file ${p}`);
       continue;
     }
     const fileBuffer = await fs.readFile(fullPath);
@@ -38,10 +51,20 @@ async function main(argv) {
       continue;
     }
     if (confidence != 100) {
-      console.log(`Skip ${path} due to low confidence`);
+      if (program.renameUnrecognized) {
+        console.log(`Rename ${p} due to low confidence.`);
+        try {
+          await fs.rename(
+            fullPath,
+            path.join(path.dirname(fullPath), "__unknown_encoding__" + basename)
+          );
+        } catch (e) {}
+      } else {
+        console.log(`Skip ${p} due to low confidence`);
+      }
       continue;
     }
-    console.log(`convert ${path} from ${encoding} to utf8`);
+    console.log(`convert ${p} from ${encoding} to utf8`);
     await fs.writeFile(fullPath, convert(fileBuffer, "UTF-8", encoding));
     count++;
   }
@@ -51,5 +74,5 @@ async function main(argv) {
 module.exports = { main };
 
 if (require.main === module) {
-  main(process.argv.slice(2));
+  main(process.argv);
 }
