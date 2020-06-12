@@ -20,6 +20,17 @@ async function main(argv) {
       100
     )
     .option(
+      "-c, --confidence <confidence_required>",
+      "Minimal confidence to accept file encoding detection result. (0-100)",
+      parseFloat,
+      100
+    )
+    .option(
+      "-e, --encoding <input_encoding>",
+      "Manually specify input files encoding.",
+      "auto"
+    )
+    .option(
       "-t, --type <file_type>",
       "convert files of these comma seperated exension(s).",
       "txt"
@@ -58,9 +69,9 @@ async function main(argv) {
     name: "confirm",
     message: `Will convert all ${fileFilter.join(
       ","
-    )} files (of at least size ${
-      program.min
-    }) in ${root} to UTF-8. Are you sure to continue ? (y/n)`
+    )} files (of at least size ${program.min}) in ${root} from ${
+      program.encoding
+    } to UTF-8. Are you sure to continue ? (y/n)`
   });
   if (confirm != "y" && confirm != "Y") {
     console.log("Abort");
@@ -79,24 +90,39 @@ async function main(argv) {
       continue;
     }
     const fileBuffer = await fs.readFile(fullPath);
-    const { encoding, confidence } = detectCharacterEncoding(fileBuffer);
-    if (!encoding || encoding == "UTF-8") {
-      continue;
-    }
-    if (confidence != 100) {
-      if (program.renameUnrecognized) {
-        console.log(`Rename ${p} due to low confidence.`);
-        try {
-          await fs.rename(
-            fullPath,
-            path.join(path.dirname(fullPath), "__unknown_encoding__" + basename)
-          );
-        } catch (e) {}
-      } else {
-        console.log(`Skip ${p} due to low confidence`);
+    let encoding = program.encoding;
+    if (encoding == "auto") {
+      const detectResult = detectCharacterEncoding(fileBuffer);
+      encoding = detectResult.encoding;
+      if (!encoding || encoding == "UTF-8") {
+        continue;
       }
-      continue;
+      if (detectResult.confidence < program.confidence) {
+        if (
+          program.renameUnrecognized &&
+          !basename.startsWith("__unknown_encoding__")
+        ) {
+          console.log(
+            `Rename ${p} due to low confidence ${detectResult.confidence}.`
+          );
+          try {
+            await fs.rename(
+              fullPath,
+              path.join(
+                path.dirname(fullPath),
+                "__unknown_encoding__" + basename
+              )
+            );
+          } catch (e) {}
+        } else {
+          console.log(
+            `Skip ${p} due to low confidence ${detectResult.confidence}.`
+          );
+        }
+        continue;
+      }
     }
+
     console.log(`convert ${p} from ${encoding} to utf8`);
     await fs.writeFile(fullPath, convert(fileBuffer, "UTF-8", encoding));
     count++;
